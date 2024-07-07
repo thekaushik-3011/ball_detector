@@ -14,8 +14,6 @@ quadrant_names = {
 }
 
 def detect_initial_quadrants(frame):
-    global initial_quadrants
-
     # Convert frame to grayscale for better processing
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -44,14 +42,9 @@ def detect_initial_quadrants(frame):
                 # Store the vertices of the quadrants
                 quadrants.append(approx.reshape(-1, 2))
 
-    # Store initial quadrant positions globally
-    initial_quadrants = quadrants
-
     return quadrants
 
 def detect_balls(frame, quadrants):
-    global initial_quadrants
-
     # Convert frame to HSV color space
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
@@ -78,14 +71,14 @@ def detect_balls(frame, quadrants):
             area = cv2.contourArea(contour)
 
             # Filter out small contours (noise reduction)
-            if area < 1000:  # Adjust threshold as needed
+            if area < 500:  # Adjust threshold as needed
                 continue
 
             # Calculate bounding rectangle around contour
             x, y, w, h = cv2.boundingRect(contour)
 
             # Calculate aspect ratio of the bounding rectangle
-            aspect_ratio = w / float(h)
+            aspect_ratio = float(w) / h
 
             # Filter out contours that don't have a ball-like shape
             if aspect_ratio < 0.8 or aspect_ratio > 1.2:
@@ -96,7 +89,7 @@ def detect_balls(frame, quadrants):
             cY = y + h // 2
 
             # Determine which quadrant the ball is in based on initial quadrant positions
-            for quad_num, quad in enumerate(initial_quadrants, start=1):
+            for quad_num, quad in enumerate(quadrants, start=1):
                 # Convert quadrant to polygon
                 polygon = np.array(quad, dtype=np.int32)
 
@@ -107,8 +100,10 @@ def detect_balls(frame, quadrants):
 
     return detected_balls
 
-def update_tracked_objects(frame, detected_balls, current_time):
+def update_tracked_objects(detected_balls, current_time):
     global tracked_objects, events
+
+    current_objects = {}
 
     for ball in detected_balls:
         x, y, w, h, cX, cY, quad_name, color = ball
@@ -123,11 +118,14 @@ def update_tracked_objects(frame, detected_balls, current_time):
             events.append((current_time, quad_name, color, 'Entry'))
             print(f"Time: {current_time}, Object detected in {quad_name}, Color: {color}, Event: Entry")
 
-    for obj_id in list(tracked_objects.keys()):
-        if obj_id not in [(cX, cY, color) for x, y, w, h, cX, cY, quad_name, color in detected_balls]:
-            events.append((current_time, tracked_objects[obj_id]['quadrant'], obj_id[2], 'Exit'))
-            print(f"Time: {current_time}, Object exited from {tracked_objects[obj_id]['quadrant']}, Color: {obj_id[2]}, Event: Exit")
-            del tracked_objects[obj_id]
+        current_objects[obj_id] = tracked_objects.pop(obj_id)
+
+    # Mark objects that have exited
+    for obj_id, obj_info in tracked_objects.items():
+        events.append((current_time, obj_info['quadrant'], obj_id[2], 'Exit'))
+        print(f"Time: {current_time}, Object exited from {obj_info['quadrant']}, Color: {obj_id[2]}, Event: Exit")
+
+    tracked_objects = current_objects
 
 def save_events_to_file(events, filename="events.txt"):
     with open(filename, 'w') as file:
@@ -135,7 +133,7 @@ def save_events_to_file(events, filename="events.txt"):
             file.write(f"{event[0]}, {event[1]}, {event[2]}, {event[3]}\n")
 
 # Open the video file
-cap = cv2.VideoCapture("C:\Users\salla\OneDrive\Desktop\Coding\Project\AI Assignment video.mp4")  # Replace with your video path
+cap = cv2.VideoCapture("AI Assignment video.mp4")  # Replace with your video path
 
 # Get video properties
 fps = cap.get(cv2.CAP_PROP_FPS)
@@ -153,7 +151,6 @@ while True:
 
     # Detect initial quadrants and exit loop
     initial_quadrants = detect_initial_quadrants(frame)
-
     break
 
 # Reset video capture to beginning
@@ -164,8 +161,8 @@ fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter('output.mp4', fourcc, fps, (int(cap.get(3)), int(cap.get(4))))
 
 # Get screen size
-screen_width = 1920  # Adjust based on your screen resolution
-screen_height = 1080  # Adjust based on your screen resolution
+screen_width = 1280  # Adjust based on your screen resolution
+screen_height = 720  # Adjust based on your screen resolution
 
 while True:
     # Read a frame from the video
@@ -182,7 +179,7 @@ while True:
     balls = detect_balls(frame.copy(), initial_quadrants)
 
     # Update tracked objects and record events
-    update_tracked_objects(frame, balls, current_time)
+    update_tracked_objects(balls, current_time)
 
     # Draw detected quadrants on the frame (optional)
     for quad in initial_quadrants:
