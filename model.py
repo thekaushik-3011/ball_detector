@@ -7,10 +7,10 @@ initial_quadrants = []
 tracked_objects = {}
 events = []
 quadrant_names = {
-    1: 'Quadrant A',
-    2: 'Quadrant B',
-    3: 'Quadrant C',
-    4: 'Quadrant D'
+    1: 'Quadrant 4',
+    2: 'Quadrant 1',
+    3: 'Quadrant 2',
+    4: 'Quadrant 3'
 }
 
 def detect_initial_quadrants(frame):
@@ -57,7 +57,6 @@ def detect_balls(frame, quadrants):
 
     # Define color ranges for the balls
     color_ranges = {
-        'green': ([35, 50, 50], [90, 255, 255]),
         'yellow': ([20, 100, 100], [30, 255, 255]),
         'red': ([0, 100, 100], [10, 255, 255]),
         'orange': ([10, 100, 100], [20, 255, 255]),
@@ -72,20 +71,14 @@ def detect_balls(frame, quadrants):
         lower = np.array(lower)
         upper = np.array(upper)
         mask = cv2.inRange(hsv, lower, upper)
-
-        # Apply morphological operations to clean up the mask
-        kernel = np.ones((5, 5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         for contour in contours:
             # Calculate the area of the contour
             area = cv2.contourArea(contour)
 
-            # Filter out contours based on area (noise reduction and size constraint)
-            if area < 1000 or area > 5000:  # Adjust thresholds as needed
+            # Filter out small contours (noise reduction)
+            if area < 1000:  # Adjust threshold as needed
                 continue
 
             # Calculate bounding rectangle around contour
@@ -96,13 +89,6 @@ def detect_balls(frame, quadrants):
 
             # Filter out contours that don't have a ball-like shape
             if aspect_ratio < 0.8 or aspect_ratio > 1.2:
-                continue
-
-            # Calculate the extent ratio to ensure the object is roughly circular
-            rect_area = w * h
-            extent = area / rect_area
-
-            if extent < 0.7 or extent > 1.0:  # Adjust extent range as needed
                 continue
 
             # Calculate center of bounding rectangle
@@ -206,26 +192,25 @@ while True:
     for ball in balls:
         x, y, w, h, cX, cY, quad_name, color = ball
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
-        cv2.putText(frame, f'Ball in {quad_name}', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-        cv2.putText(frame, f'Color: {color}', (x, y - 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+        cv2.putText(frame, f'Ball in {quad_name} - {color}', (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
-    # Resize frame to fit screen
-    frame = cv2.resize(frame, (screen_width, screen_height))
+    # Resize the frame to fit the screen
+    frame_resized = cv2.resize(frame, (screen_width, screen_height))
 
-    # Write frame to output video
-    out.write(frame)
+    # Write the frame to the output video
+    out.write(frame_resized)
 
     # Display the resulting frame
-    cv2.imshow("Quadrant and Object Detection", frame)
+    cv2.imshow("Quadrant and Ball Detection", frame_resized)
 
     # Exit on 'q' key press
     if cv2.waitKey(1) & 0xFF == ord("q"):
         break
 
+# Save events to file
+save_events_to_file(events)
+
 # Release resources
 cap.release()
 out.release()
 cv2.destroyAllWindows()
-
-# Save events to file
-save_events_to_file(events)
